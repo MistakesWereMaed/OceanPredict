@@ -1,0 +1,15 @@
+# Ignore NetCDF (Network Common Data Form) files
+*.nc
+*.nc4
+
+# Ignore any temporary or backup files
+*.tmp
+*.bak
+
+# Ignore any hidden system files (Mac & Linux)
+.DS_Store
+
+__pycache__
+
+*.ckpt
+*.npz
