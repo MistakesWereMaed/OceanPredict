@@ -64,8 +64,9 @@ class model(pl.LightningModule):
         return out
     
     @staticmethod
-    def get_hyperparam_space():
+    def get_sweep_congfig():
         return {
+            "name": "GNN-Tuning",
             "method": "bayes",
             "metric": {
                 "name": "val_loss",
@@ -73,12 +74,12 @@ class model(pl.LightningModule):
             },
             "parameters": {
                 "batch_size": {"values": [1, 4, 8, 16]},
-                "hidden_dim": {"values": [128, 256, 384, 512]},
-                "num_gnn_layers": {"values": [2, 3, 4]},
+                "hidden_dim": {"values": [32, 64, 96, 128]},
+                "num_gnn_layers": {"values": [1, 2, 3, 4]},
                 "learning_rate": {
-                    "min": 0.000001,
-                    "max": 0.001,
-                    "distribution": "log_uniform"
+                    "distribution": "log_uniform_values",
+                    "min": 1e-6,
+                    "max": 1e-3
                 }
             }
         }

@@ -10,6 +10,8 @@ from data.data_loader import load_data, get_image_size
 PATH_TRAIN = "../Data/train.nc"
 PATH_VAL = "../Data/val.nc"
 
+PROJECT = "OceanPredict"
+
 def main():
     parser = argparse.ArgumentParser(description="Train a model with specific parameters.")
 
@@ -23,7 +25,7 @@ def main():
     size = get_image_size(PATH_TRAIN)
     model, batch_size = initialize_model(model_type, size)
 
-    logger = WandbLogger(project="OceanPredict", name=model.name)
+    logger = WandbLogger(project=PROJECT, name=model.name)
     checkpoint_cb = ModelCheckpoint(monitor="val_loss/dataloader_idx_0", save_top_k=1, mode="min")
     early_stop_cb = EarlyStopping(monitor="val_loss/dataloader_idx_0", patience=3, mode="min")
 
@@ -34,7 +36,7 @@ def main():
         precision="16-mixed",
         logger=logger,
         callbacks=[checkpoint_cb, early_stop_cb],
-        log_every_n_steps=8
+        log_every_n_steps=10
     )
 
     train_loader = load_data(PATH_TRAIN, batch_size=batch_size)

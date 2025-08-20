@@ -71,8 +71,9 @@ class model(pl.LightningModule):
         return torch.stack((u, v, ssh), dim=1)
 
     @staticmethod
-    def get_hyperparam_space():
+    def get_sweep_congfig():
         return {
+            "name": "PINN-Tuning",
             "method": "bayes",
             "metric": {
                 "name": "val_loss",

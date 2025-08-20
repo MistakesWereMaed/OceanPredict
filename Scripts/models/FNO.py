@@ -96,8 +96,9 @@ class model(pl.LightningModule):
         return x
 
     @staticmethod
-    def get_hyperparam_space():
+    def get_sweep_congfig():
         return {
+            "name": "FNO-Tuning",
             "method": "bayes",
             "metric": {
                 "name": "val_loss",
@@ -110,9 +111,9 @@ class model(pl.LightningModule):
                 "fno_width": {"values": [32, 64, 96, 128]},
                 "mlp_hidden_dim": {"values": [64, 128, 192, 256]},
                 "learning_rate": {
-                    "min": 0.000001,
-                    "max": 0.001,
-                    "distribution": "log_uniform"
+                    "distribution": "log_uniform_values",
+                    "min": 1e-6,
+                    "max": 1e-3
                 }
             }
         }

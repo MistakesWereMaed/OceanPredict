@@ -1,105 +1,80 @@
-import os
-import json
-import pickle
 import argparse
-import torch
+import wandb
+import json
 
-from hyperopt import fmin, tpe, Trials
-from functools import partial
-from models import PICPModel, GNN, FNO
-from model_trainer import train
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning import Trainer
 
-PATH_TRAIN = "../Data/Processed/Train.nc"
-PATH_TEST = "../Data/Processed/Val.nc"
-PATH_PARAMS = "../Models/Params"
+from models._selector import select_model, initialize_model
+from data.data_loader import load_data, get_image_size
 
-def train_wrapper(model_type, params, epochs, downsampling_scale, splits):
-    print("Training...")
-    val_loss, _ = train(
-        model_type=model_type, epochs=epochs,
-        path_train=PATH_TRAIN, path_val=PATH_TEST, downsampling_scale=downsampling_scale, splits=splits,
-        experiment=True, show_progress_bar=False, hyperparameters=params
-    )
-    
-    torch.cuda.empty_cache()
-    
-    return val_loss
+PATH_TRAIN = "../Data/train.nc"
+PATH_VAL = "../Data/val.nc"
+PATH_PARAMS = "../Params"
+PATH_SECRETS = "data/secrets.json"
 
-def objective(params, model_type, epochs, downsampling_scale, splits):
-    print(params)
-    try:
-        val_loss = train_wrapper(model_type, params, epochs, downsampling_scale, splits)
-    except Exception as e:
-        print(f"Training failed with params {params}: {e}")
-        return {'loss': float('inf'), 'status': 'fail', 'params': params}
-    
-    return {'loss': val_loss, 'status': 'ok', 'params': params}
+PROJECT = "OceanPredict"
+MAX_EPOCHS = 3
+
+def train(model_type, config=None):
+    with wandb.init(config=config, name=f"{model_type}-tuning"):
+        config = wandb.config
+        logger = WandbLogger(project=PROJECT, config=config)
+
+        size = get_image_size(PATH_TRAIN)
+        model, batch_size = initialize_model(model_type, size, config)
+
+        train_loader = load_data(PATH_TRAIN, batch_size=batch_size)
+        val_loader = load_data(PATH_VAL, batch_size=batch_size)
+
+        trainer = Trainer(
+            max_epochs=MAX_EPOCHS,
+            accelerator="gpu",
+            devices=1,
+            precision="16-mixed",
+            logger=logger,
+            log_every_n_steps=10
+        )
+
+        trainer.fit(model, train_loader, val_loader)
+
+def save_best_config(entity, sweep_id, model_type):
+    api = wandb.Api()
+    sweep = api.sweep(f"{entity}/{PROJECT}/{sweep_id}")
+
+    runs = sweep.runs
+    best_run = min(runs, key=lambda run: run.summary.get("val_loss", float("inf")))
+
+    best_config = dict(best_run.config)
+    output_file = f"{PATH_PARAMS}/{model_type}.json"
+
+    with open(output_file, "w") as f:
+        json.dump(best_config, f, indent=4)
+
+    print(best_config)
 
 def main():
     parser = argparse.ArgumentParser(description="Train a model with specific parameters.")
+
     parser.add_argument("--model", type=str, required=True, help="Type of model")
-    parser.add_argument("--epochs", type=int, default=5, help="Number of epochs")
-    parser.add_argument("--splits", type=int, default=12, help="Number of splits")
-    parser.add_argument("--trials", type=int, default=2, help="Number of trials")
-    parser.add_argument("--downsampling", type=int, default=2, help="Downsampling reduction scale")
-
+    parser.add_argument("--trials", type=int, default=20, help="Number of trials")
     args = parser.parse_args()
+
     model_type = args.model
-    epochs = args.epochs
-    splits = args.splits
     trials = args.trials
-    downsampling_scale = args.downsampling
 
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12345'
-    # Select model
-    match model_type:
-        case "PINN":
-            model_class = PICPModel
-        case "FNO":
-            model_class = FNO
-        case "GNN":
-            model_class = GNN
-        case _:
-            raise ValueError(f"Unknown model type")
-    # Get hyperparameter space and run trials
-    space = model_class.get_hyperparam_space()
-    objective_with_args = partial(objective, model_type=model_type, epochs=epochs, downsampling_scale=downsampling_scale, splits=splits)
+    model_class = select_model(model_type)
+    sweep_config = model_class.get_sweep_congfig()
+
+    with open(PATH_SECRETS, 'r') as f:
+        secrets = json.load(f)
+
+    entity = secrets["WANDB_ENTITY"]
     
-    trials_file = f"{PATH_PARAMS}/{model_type}_trials.pkl"
-    
-    # Load existing trials if available
-    if os.path.exists(trials_file):
-        with open(trials_file, "rb") as f:
-            trials = pickle.load(f)
-        print(f"Loaded existing trials with {len(trials.trials)} evaluations.")
-    else:
-        trials = Trials()
+    sweep_id = wandb.sweep(sweep_config, project=PROJECT)
+    wandb.agent(sweep_id, function=lambda: train(model_type=model_type), count=trials)
 
-    try:
-        # Continue tuning from previous progress
-        max_evals = len(trials.trials) + args.trials
-        best = fmin(fn=objective_with_args, space=space, algo=tpe.suggest, 
-                    max_evals=max_evals, trials=trials)
-
-        # Save progress
-        with open(trials_file, "wb") as f:
-            pickle.dump(trials, f)
-
-        best_loss = trials.best_trial['result']['loss']
-        best_params = trials.best_trial['result']['params']
-        
-        # Save best parameters
-        with open(f"{PATH_PARAMS}/{model_type}.json", "w") as f:
-            json.dump({k: v for k, v in best_params.items()}, f)
-
-        print(f"Best hyperparameters saved with loss {best_loss:.4f}")
-    
-    except Exception as e:
-        print(f"Hyperparameter tuning failed: {e}")
-        # Save trials even if an error occurs
-        with open(trials_file, "wb") as f:
-            pickle.dump(trials, f)
+    save_best_config(entity, sweep_id, model_type)
 
 if __name__ == "__main__":
     main()

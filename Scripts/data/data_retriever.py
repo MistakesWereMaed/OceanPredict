@@ -6,6 +6,7 @@ import xarray as xr
 import copernicusmarine
 import cdsapi
 
+PATH_DATA = "../Data"
 PATH_SECRETS = "secrets.json"
 
 LON_MIN = 10
@@ -123,11 +124,11 @@ def process_files():
     val = full.sel(time=slice("2024-11-01", "2024-11-30"))
     test = full.sel(time=slice("2024-12-01", "2024-12-31"))
 
-    os.makedirs("../Data", exist_ok=True)
+    os.makedirs(PATH_DATA, exist_ok=True)
 
-    train.to_netcdf("../Data/train.nc")
-    val.to_netcdf("../Data/val.nc")
-    test.to_netcdf("../Data/test.nc")
+    train.to_netcdf(f"{PATH_DATA}/train.nc")
+    val.to_netcdf(f"{PATH_DATA}/val.nc")
+    test.to_netcdf(f"{PATH_DATA}/test.nc")
 
     shutil.rmtree("./tmp")
 
