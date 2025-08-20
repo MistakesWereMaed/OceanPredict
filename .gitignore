@@ -1,14 +1,10 @@
-*.nc
-*.nc4
-
-*.tmp
-*.bak
+Data
 
 .DS_Store
 
 __pycache__
 
-*.ckpt
-*.npz
+.wandb
+OceanPredict
 
 secrets.json
