@@ -1,7 +1,10 @@
+import json
 import torch
 import torch.nn as nn
 import torch.fft
 import torch.nn.functional as F
+
+import pytorch_lightning as pl
 
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
@@ -37,9 +40,10 @@ class SpectralConv2d(nn.Module):
 
         return x
 
-class model(nn.Module):
-    def __init__(self, image_size, **kwargs):
+class model(pl.LightningModule):
+    def __init__(self, image_size, learning_rate, **kwargs):
         super().__init__()
+        self.save_hyperparameters()
 
         self.modes1 = int(kwargs["num_fourier_modes"])
         self.modes2 = int(kwargs["num_fourier_modes"])
@@ -94,10 +98,65 @@ class model(nn.Module):
     @staticmethod
     def get_hyperparam_space():
         return {
-            "batch_size": hp.choice("batch_size", [1, 4, 8, 16]),
-            "num_fourier_modes": hp.quniform("num_fourier_modes", 8, 32, 4),
-            "num_fno_layers": hp.choice("num_fno_layers", [1, 2, 4]),
-            "fno_width": hp.quniform("fno_width", 32, 128, 32),
-            "mlp_hidden_dim": hp.quniform("mlp_hidden_dim", 64, 256, 64),
-            "learning_rate": hp.loguniform("learning_rate", -6, -3),
+            "method": "bayes",
+            "metric": {
+                "name": "val_loss",
+                "goal": "minimize"
+            },
+            "parameters": {
+                "batch_size": {"values": [1, 4, 8, 16]},
+                "num_fourier_modes": {"values": [8, 16, 24, 32]},
+                "num_fno_layers": {"values": [1, 2, 4]},
+                "fno_width": {"values": [32, 64, 96, 128]},
+                "mlp_hidden_dim": {"values": [64, 128, 192, 256]},
+                "learning_rate": {
+                    "min": 0.000001,
+                    "max": 0.001,
+                    "distribution": "log_uniform"
+                }
+            }
         }
+    
+    @staticmethod
+    def load_params():
+        try:
+            with open("../../Params/FNO.json", "r") as f:
+                params = json.load(f)
+        except FileNotFoundError:
+            params = {
+                "batch_size": 4,
+                "num_fourier_modes": 20,
+                "num_fno_layers": 2,
+                "fno_width": 64,
+                "mlp_hidden_dim": 128,
+                "learning_rate": 1e-3,
+            }
+        return params
+    
+
+    
+    def training_step(self, batch, batch_idx, dataloader_idx=0):
+        x, y = batch
+        x = torch.cat((x[0], x[1]), dim=0)
+        y = torch.cat((y[0], y[1]), dim=0)
+        
+        y_hat = self.forward(x)
+        loss = F.l1_loss(y_hat, y)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        x, y = batch
+        
+        y_hat = self.forward(x)
+        val_loss = F.l1_loss(y_hat, y)
+        self.log("val_loss", val_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return val_loss
+    
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        x, y = batch
+        y_hat = self.forward(x)
+        return {"preds": y_hat, "targets": y}
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)

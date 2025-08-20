@@ -1,0 +1,21 @@
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+/home/nhn479/.conda/envs/Lightning/lib/python3.10/site-packages/pytorch_lightning/utilities/model_summary/model_summary.py:231: Precision 16-mixed is not supported by the model summary.  Estimated model size in MB will not be accurate. Using 32 bits instead.
+
+  | Name    | Type       | Params | Mode
+-----------------------------------------------
+0 | dropout | Dropout    | 0      | train
+1 | fc0     | Conv2d     | 256    | train
+2 | convs   | ModuleList | 3.3 M  | train
+3 | ws      | ModuleList | 8.3 K  | train
+4 | fc1     | Linear     | 8.3 K  | train
+5 | fc2     | Linear     | 387    | train
+-----------------------------------------------
+17.3 K    Trainable params
+3.3 M     Non-trainable params
+3.3 M     Total params
+13.176    Total estimated model params size (MB)
+10        Modules in train mode
+0         Modules in eval mode
+Epoch 2: 100%|███████████████████████████████| 76/76 [00:02<00:00, 28.07it/s, v_num=fot2, train_loss_step=0.0777, val_loss/dataloader_idx_0=0.141, val_loss/dataloader_idx_1=0.141, train_loss_epoch=0.0756]
+                                                                                                                                                                                                            
+`Trainer.fit` stopped: `max_epochs=3` reached.

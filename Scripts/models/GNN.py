@@ -1,13 +1,19 @@
+import json
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+import pytorch_lightning as pl
 
 from torch_geometric.nn import GCNConv
 from torch_geometric.utils import grid
 from torch_geometric.data import Data, Batch
 
-class model(nn.Module):
-    def __init__(self, image_size, **kwargs):
+class model(pl.LightningModule):
+    def __init__(self, image_size, learning_rate,**kwargs):
         super().__init__()
+        self.save_hyperparameters()
+
         hidden_dim = int(kwargs["hidden_dim"])
         num_gnn_layers = int(kwargs["num_gnn_layers"])
 
@@ -60,8 +66,61 @@ class model(nn.Module):
     @staticmethod
     def get_hyperparam_space():
         return {
-            "batch_size": hp.choice("batch_size", [1, 4, 8, 16]),
-            "hidden_dim": hp.quniform("hidden_dim", 32, 256, 32),
-            "num_gnn_layers": hp.choice("num_gnn_layers", [2, 3, 4]),
-            "learning_rate": hp.loguniform("learning_rate", -6, -3),
+            "method": "bayes",
+            "metric": {
+                "name": "val_loss",
+                "goal": "minimize"
+            },
+            "parameters": {
+                "batch_size": {"values": [1, 4, 8, 16]},
+                "hidden_dim": {"values": [128, 256, 384, 512]},
+                "num_gnn_layers": {"values": [2, 3, 4]},
+                "learning_rate": {
+                    "min": 0.000001,
+                    "max": 0.001,
+                    "distribution": "log_uniform"
+                }
+            }
         }
+    
+    @staticmethod
+    def load_params():
+        try:
+            with open("../../Params/GNN.json", "r") as f:
+                params = json.load(f)
+        except FileNotFoundError:
+            params = {
+                "batch_size": 8,
+                "hidden_dim": 64,
+                "num_gnn_layers": 1,
+                "learning_rate": 1e-4,
+            }
+        return params
+    
+
+    
+    def training_step(self, batch, batch_idx, dataloader_idx=0):
+        x, y = batch
+        x = torch.cat((x[0], x[1]), dim=0)
+        y = torch.cat((y[0], y[1]), dim=0)
+        
+        y_hat = self.forward(x)
+        loss = F.l1_loss(y_hat, y)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        x, y = batch
+        
+        y_hat = self.forward(x)
+        val_loss = F.l1_loss(y_hat, y)
+        self.log("val_loss", val_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return val_loss
+    
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        x, y = batch
+        y_hat = self.forward(x)
+        return {"preds": y_hat, "targets": y}
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
