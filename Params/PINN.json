@@ -1,16 +1,16 @@
 {
     "embed_dim": 128,
-    "num_heads": 4,
-    "batch_size": 1,
+    "num_heads": 1,
+    "batch_size": 8,
     "image_size": [
         157,
         337
     ],
     "kernel_size": [
-        5,
-        10
+        3,
+        3
     ],
-    "linformer_k": 512,
-    "learning_rate": 1.0875284723201527e-06,
+    "linformer_k": 128,
+    "learning_rate": 0.00092133,
     "mlp_hidden_dim": 128
 }

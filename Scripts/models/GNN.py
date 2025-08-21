@@ -69,13 +69,13 @@ class model(pl.LightningModule):
             "name": "GNN-Tuning",
             "method": "bayes",
             "metric": {
-                "name": "val_loss",
+                "name": "val_loss/dataloader_idx_0",
                 "goal": "minimize"
             },
             "parameters": {
-                "batch_size": {"values": [1, 4, 8, 16]},
+                "batch_size": {"values": [1, 4, 8]},
                 "hidden_dim": {"values": [32, 64, 96, 128]},
-                "num_gnn_layers": {"values": [1, 2, 3, 4]},
+                "num_gnn_layers": {"values": [2, 4, 6]},
                 "learning_rate": {
                     "distribution": "log_uniform_values",
                     "min": 1e-6,
@@ -87,9 +87,10 @@ class model(pl.LightningModule):
     @staticmethod
     def load_params():
         try:
-            with open("../../Params/GNN.json", "r") as f:
+            with open("../Params/GNN.json", "r") as f:
                 params = json.load(f)
         except FileNotFoundError:
+            print("No params found, using defaults")
             params = {
                 "batch_size": 8,
                 "hidden_dim": 64,

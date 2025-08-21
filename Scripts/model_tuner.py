@@ -14,7 +14,7 @@ PATH_PARAMS = "../Params"
 PATH_SECRETS = "data/secrets.json"
 
 PROJECT = "OceanPredict"
-MAX_EPOCHS = 3
+MAX_EPOCHS = 1
 
 def train(model_type, config=None):
     with wandb.init(config=config, name=f"{model_type}-tuning"):
@@ -43,7 +43,7 @@ def save_best_config(entity, sweep_id, model_type):
     sweep = api.sweep(f"{entity}/{PROJECT}/{sweep_id}")
 
     runs = sweep.runs
-    best_run = min(runs, key=lambda run: run.summary.get("val_loss", float("inf")))
+    best_run = min(runs, key=lambda run: run.summary.get("val_loss/dataloader_idx_0", float("inf")))
 
     best_config = dict(best_run.config)
     output_file = f"{PATH_PARAMS}/{model_type}.json"

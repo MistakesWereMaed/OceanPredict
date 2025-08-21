@@ -101,11 +101,11 @@ class model(pl.LightningModule):
             "name": "FNO-Tuning",
             "method": "bayes",
             "metric": {
-                "name": "val_loss",
+                "name": "val_loss/dataloader_idx_0",
                 "goal": "minimize"
             },
             "parameters": {
-                "batch_size": {"values": [1, 4, 8, 16]},
+                "batch_size": {"values": [1, 4, 8]},
                 "num_fourier_modes": {"values": [8, 16, 24, 32]},
                 "num_fno_layers": {"values": [1, 2, 4]},
                 "fno_width": {"values": [32, 64, 96, 128]},
@@ -121,9 +121,10 @@ class model(pl.LightningModule):
     @staticmethod
     def load_params():
         try:
-            with open("../../Params/FNO.json", "r") as f:
+            with open("../Params/FNO.json", "r") as f:
                 params = json.load(f)
         except FileNotFoundError:
+            print("No params found, using defaults")
             params = {
                 "batch_size": 4,
                 "num_fourier_modes": 20,

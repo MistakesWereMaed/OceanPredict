@@ -76,7 +76,7 @@ class model(pl.LightningModule):
             "name": "PINN-Tuning",
             "method": "bayes",
             "metric": {
-                "name": "val_loss",
+                "name": "val_loss/dataloader_idx_0",
                 "goal": "minimize"
             },
             "parameters": {
@@ -84,8 +84,8 @@ class model(pl.LightningModule):
                 "kernel_size": {"values": [[3, 3], [5, 10], [7, 7]]},
                 "num_heads": {"values": [1, 2, 4]},
                 "embed_dim": {"values": [128, 256, 384, 512]},
-                "linformer_k": {"values": [128, 256, 384, 512]},
-                "mlp_hidden_dim": {"values": [128, 256, 384, 512]},
+                "linformer_k": {"values": [32, 64, 96, 128]},
+                "mlp_hidden_dim": {"values": [32, 64, 96, 128]},
                 "learning_rate": {
                     "distribution": "log_uniform_values",
                     "min": 1e-6,
@@ -97,9 +97,10 @@ class model(pl.LightningModule):
     @staticmethod
     def load_params():
         try:
-            with open("../../Params/PINN.json", "r") as f:
+            with open("../Params/PINN.json", "r") as f:
                 params = json.load(f)
         except FileNotFoundError:
+            print("No params found, using defaults")
             params = {
                 "batch_size": 8,
                 "kernel_size": (3, 3),

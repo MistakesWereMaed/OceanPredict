@@ -1,10 +1,10 @@
 {
-    "batch_size": 16,
-    "hidden_dim": 32,
+    "batch_size": 1,
+    "hidden_dim": 96,
     "image_size": [
         157,
         337
     ],
-    "learning_rate": 5.615895409632911e-06,
-    "num_gnn_layers": 2
+    "learning_rate": 2.0022474741780514e-05,
+    "num_gnn_layers": 6
 }

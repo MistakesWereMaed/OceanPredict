@@ -5,8 +5,8 @@
         157,
         337
     ],
-    "learning_rate": 1.2373458088015088e-05,
-    "mlp_hidden_dim": 192,
-    "num_fno_layers": 1,
-    "num_fourier_modes": 24
+    "learning_rate": 0.0009178718481787732,
+    "mlp_hidden_dim": 128,
+    "num_fno_layers": 4,
+    "num_fourier_modes": 32
 }
