@@ -1,6 +1,7 @@
 import argparse
 import wandb
 import json
+import os
 
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import Trainer
@@ -12,31 +13,32 @@ PATH_TRAIN = "../Data/train.nc"
 PATH_VAL = "../Data/val.nc"
 PATH_PARAMS = "../Params"
 PATH_SECRETS = "data/secrets.json"
+PATH_LOGS = "../Logs"
 
 PROJECT = "OceanPredict"
 MAX_EPOCHS = 1
 
 def train(model_type, config=None):
-    with wandb.init(config=config, name=f"{model_type}-tuning"):
-        config = wandb.config
-        logger = WandbLogger(project=PROJECT, config=config)
+    config = config or {}
+    logger = WandbLogger(project=PROJECT, name=f'{model_type}-tuning', config=config, save_dir=PATH_LOGS)
 
-        size = get_image_size(PATH_TRAIN)
-        model, batch_size = initialize_model(model_type, size, config)
+    size = get_image_size(PATH_TRAIN)
+    model, batch_size = initialize_model(model_type, size, config)
 
-        train_loader = load_data(PATH_TRAIN, batch_size=batch_size)
-        val_loader = load_data(PATH_VAL, batch_size=batch_size)
+    train_loader = load_data(PATH_TRAIN, batch_size=batch_size)
+    val_loader = load_data(PATH_VAL, batch_size=batch_size)
 
-        trainer = Trainer(
-            max_epochs=MAX_EPOCHS,
-            accelerator="gpu",
-            devices=1,
-            precision="16-mixed",
-            logger=logger,
-            log_every_n_steps=10
-        )
+    trainer = Trainer(
+        max_epochs=MAX_EPOCHS,
+        accelerator="gpu",
+        devices=1,
+        precision="16-mixed",
+        logger=logger,
+        log_every_n_steps=10,
+        enable_checkpointing=False
+    )
 
-        trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_loader, val_loader)
 
 def save_best_config(entity, sweep_id, model_type):
     api = wandb.Api()
@@ -54,6 +56,7 @@ def save_best_config(entity, sweep_id, model_type):
     print(best_config)
 
 def main():
+    os.environ["WANDB_DIR"] = PATH_LOGS
     parser = argparse.ArgumentParser(description="Train a model with specific parameters.")
 
     parser.add_argument("--model", type=str, required=True, help="Type of model")
@@ -71,10 +74,10 @@ def main():
 
     entity = secrets["WANDB_ENTITY"]
     
-    sweep_id = wandb.sweep(sweep_config, project=PROJECT)
+    sweep_id = wandb.sweep(sweep_config, project=PROJECT, entity=entity)
     wandb.agent(sweep_id, function=lambda: train(model_type=model_type), count=trials)
 
-    save_best_config(entity, sweep_id, model_type)
+    #save_best_config(entity, sweep_id, model_type)
 
 if __name__ == "__main__":
     main()
