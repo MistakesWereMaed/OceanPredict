@@ -6,6 +6,8 @@ import torch.nn.functional as F
 
 import pytorch_lightning as pl
 
+PATH_PARAMS = "../Models/FNO/params.json"
+
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
         super().__init__()
@@ -41,6 +43,9 @@ class SpectralConv2d(nn.Module):
         return x
 
 class model(pl.LightningModule):
+    def loss_fn(self, y_hat, y):
+        return F.l1_loss(y_hat, y)
+    
     def __init__(self, image_size, learning_rate, **kwargs):
         super().__init__()
         self.save_hyperparameters()
@@ -121,7 +126,7 @@ class model(pl.LightningModule):
     @staticmethod
     def load_params():
         try:
-            with open("../Params/FNO.json", "r") as f:
+            with open(PATH_PARAMS, "r") as f:
                 params = json.load(f)
         except FileNotFoundError:
             print("No params found, using defaults")
@@ -143,7 +148,7 @@ class model(pl.LightningModule):
         y = torch.cat((y[0], y[1]), dim=0)
         
         y_hat = self.forward(x)
-        loss = F.l1_loss(y_hat, y)
+        loss = self.loss_fn(y_hat, y)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
@@ -151,7 +156,7 @@ class model(pl.LightningModule):
         x, y = batch
         
         y_hat = self.forward(x)
-        val_loss = F.l1_loss(y_hat, y)
+        val_loss = self.loss_fn(y_hat, y)
         self.log("val_loss", val_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return val_loss
     

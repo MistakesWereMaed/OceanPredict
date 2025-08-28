@@ -1,5 +1,4 @@
 import argparse
-import wandb
 
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import Trainer
@@ -12,7 +11,7 @@ PATH_TRAIN = "../Data/train.nc"
 PATH_VAL = "../Data/val.nc"
 
 PROJECT = "OceanPredict"
-PATH_CHECKPOINTS = "../Checkpoints"
+PATH_MODELS = "../Models"
 PATH_LOGS = "../Logs"
 
 def main():
@@ -28,8 +27,8 @@ def main():
     size = get_image_size(PATH_TRAIN)
     model, batch_size = initialize_model(model_type, size)
 
-    logger = WandbLogger(name=f"{model_type}-training", project=PROJECT, save_dir=PATH_LOGS)
-    checkpoint_cb = ModelCheckpoint(monitor="val_loss/dataloader_idx_0", save_top_k=1, mode="min", filename=model.name, dirpath=PATH_CHECKPOINTS)
+    logger = WandbLogger(name=f"{model_type}-Training", project=PROJECT, save_dir=PATH_LOGS)
+    checkpoint_cb = ModelCheckpoint(monitor="val_loss/dataloader_idx_0", save_top_k=1, mode="min", filename=model.name, dirpath=f"{PATH_MODELS}/{model.name}/model.ckpt")
     early_stop_cb = EarlyStopping(monitor="val_loss/dataloader_idx_0", patience=3, mode="min")
 
     trainer = Trainer(

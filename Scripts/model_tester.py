@@ -1,87 +1,105 @@
 import argparse
-import numpy as np
 import xarray as xr
+import numpy as np
+
 import torch
+import pytorch_lightning as pl
 
-from tqdm import tqdm
-from models import initialize_model
-from model_trainer import load_checkpoint
-from data_loader import get_image_size
+from models._selector import select_model
+from data.scaler import MinMaxScaler
 
-PATH_TEST = "../Data/Processed/Test.nc"
-PATH_WEIGHTS = "../Models/Weights"
-PATH_RESULTS = "../Models/Results"
+PROJECT = "OceanPredict"
+PATH_LOGS = "../Logs"
+
+PATH_TEST = "../Data/test.nc"
+PATH_MODELS = "../Models"
 
 TARGET_DAYS = 15
 INPUT_VARS = ["zos", "u10", "v10"]
 TARGET_VARS = ["uo", "vo", "zos"]
 
-def test(model_type, path_test, downsampling_scale):
-    # Load full dataset
-    ds = xr.open_dataset(path_test)
-    if downsampling_scale >= 1:
-        ds = ds.interp(latitude=ds.latitude[::downsampling_scale], longitude=ds.longitude[::downsampling_scale], method="nearest")
+LON_MIN = 10
+LON_MAX = 38
+LAT_MIN = -45
+LAT_MAX = -32
 
-    # Convert input vars to tensor and stack along channel dim
-    inputs = torch.stack([torch.tensor(ds[var].values).float() for var in INPUT_VARS], dim=1)  # [T, C=3, H, W]
+class OceanTestModule(pl.LightningModule):
+    def __init__(self, model, loss_fn, scaler):
+        super().__init__()
+        self.model = model
+        self.loss_fn = loss_fn
+        self.scaler = scaler
 
-    # Convert target vars to tensor and stack along channel dim
-    targets = torch.stack([torch.tensor(ds[var].values).float() for var in TARGET_VARS], dim=1)  # [T, C=3, H, W]
+        # storage for evaluation
+        self.all_predictions = []
+        self.all_targets = []
 
-    # Make sure time length is divisible by TARGET_DAYS
+    def predict_step(self, batch, batch_idx):
+        x_t0, target_sequence = batch
+
+        preds = []
+        input_t = x_t0
+        for t in range(TARGET_DAYS):
+            output = self.model(input_t)        # [B, C, H, W]
+            preds.append(output.unsqueeze(2))   # accumulate [B, C, 1, H, W]
+            # next step autoregression (still scaled)
+            input_t = output.detach()
+
+        preds = torch.cat(preds, dim=2)  # [B, C, T, H, W]
+
+        # store raw scaled tensors
+        self.all_predictions.append(preds.cpu())
+        self.all_targets.append(target_sequence.cpu())
+
+        return preds
+
+    def on_predict_epoch_end(self):
+        # concat all batches (still scaled)
+        predictions_scaled = torch.cat(self.all_predictions, dim=0)  # [B, C, T, H, W]
+        targets_scaled = torch.cat(self.all_targets, dim=0)          # [B, C, T, H, W]
+
+        # unscale once, on CPU
+        predictions = self.scaler.inverse_transform(predictions_scaled.cpu(), TARGET_VARS)
+        targets = self.scaler.inverse_transform(targets_scaled.cpu(), TARGET_VARS)
+
+        # compute daily losses in unscaled space
+        B, C, T, H, W = predictions.shape
+        daily_losses = []
+        for t in range(T):
+            loss_t = self.loss_fn(predictions[:, :, t], targets[:, :, t])
+            daily_losses.append(loss_t.item())
+        daily_losses = np.array(daily_losses)
+
+        print(f"Average loss by lead time: {daily_losses}")
+
+        # stash for outside access
+        self.results = {
+            "predictions": predictions,
+            "targets": targets,
+            "losses": daily_losses,
+        }
+
+def make_test_dataset(path_test, scaler):
+    raw_ds = xr.open_dataset(path_test)
+    ds = scaler.fit_transform(raw_ds)
+    # stack inputs [T, C, H, W]
+    inputs = torch.stack([torch.tensor(ds[var].values).float() for var in INPUT_VARS], dim=1)
+    targets = torch.stack([torch.tensor(ds[var].values).float() for var in TARGET_VARS], dim=1)
+
     total_days = inputs.shape[0]
     usable_days = total_days - TARGET_DAYS
-    batch_size = usable_days  # One sample for each valid starting day
 
-    # Prepare input_t0: [B, C, H, W] for day t
-    input_t0 = inputs[:usable_days]  # shape: [B, C, H, W]
-
-    # Prepare target sequence: next 15 days per sample
-    target_sequence = torch.stack([targets[t+1:t+1+TARGET_DAYS] for t in range(usable_days)])  # [B, T, C, H, W]
+    input_t0 = inputs[:usable_days]  # [B, C, H, W]
+    target_sequence = torch.stack(
+        [targets[t + 1 : t + 1 + TARGET_DAYS] for t in range(usable_days)]
+    )  # [B, T, C, H, W]
     target_sequence = target_sequence.permute(0, 2, 1, 3, 4)  # [B, C, T, H, W]
 
-    # Initialize model and other components
-    image_size = get_image_size(path_test, downsampling_scale)
-    model, optimizer, loss_function, _ = initialize_model(image_size, model_type)
-    load_checkpoint(f"{PATH_WEIGHTS}/{model.name}.ckpt", model, optimizer, experiment=False)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-
-    input_t0 = input_t0.to(device)
-    target_sequence = target_sequence.to(device)
-
-    all_predictions = []
-    daily_losses = []
-
-    with torch.no_grad():
-        for i in tqdm(range(input_t0.shape[0]), desc="Testing"):
-            input_t = input_t0[i:i+1]  # [1, C, H, W]
-            target_seq = target_sequence[i:i+1]  # [1, C, T, H, W]
-            sample_predictions = []
-            losses = []
-
-            for t in range(TARGET_DAYS):
-                output = model(input_t)  # [1, C, H, W]
-                sample_predictions.append(output.unsqueeze(2))  # [1, C, 1, H, W]
-                loss = loss_function(output, target_seq[:, :, t])
-                losses.append(loss.item())
-
-                input_t = output.detach()  # autoregressive input update
-
-            predictions = torch.cat(sample_predictions, dim=2)  # [1, C, T, H, W]
-            all_predictions.append(predictions)
-            daily_losses.append(losses)
-
-    all_predictions = torch.cat(all_predictions, dim=0)  # [B, C, T, H, W]
-    all_targets = target_sequence.cpu()
-    daily_losses = torch.tensor(daily_losses).mean(dim=0).numpy()
-
-    print(f"Average loss by lead time: {daily_losses}")
-    return daily_losses, all_predictions.cpu(), all_targets
+    dataset = torch.utils.data.TensorDataset(input_t0, target_sequence)
+    return dataset
 
 def save_results(model_type, loss, predictions, targets):
-    results_path = f"{PATH_RESULTS}/{model_type}.nc"
+    results_path = f"{PATH_MODELS}/{model_type}/results.nc"
 
     preds_np = predictions.numpy().astype(np.float32)
     targets_np = targets.numpy().astype(np.float32)
@@ -97,21 +115,37 @@ def save_results(model_type, loss, predictions, targets):
             "sample": np.arange(B),
             "channel": np.arange(C),
             "time": np.arange(T),
-            "latitude": np.linspace(65, 90, H),
-            "longitude": np.linspace(-180, 180, W),
+            "latitude": np.linspace(LAT_MIN, LAT_MAX, H),
+            "longitude": np.linspace(LON_MIN, LON_MAX, W),
         },
     )
 
     ds.to_netcdf(results_path)
 
 def main():
-    parser = argparse.ArgumentParser(description="Test autoregressive model.")
-    parser.add_argument("--model", type=str, required=True, help="Model type")
-    parser.add_argument("--downsampling", type=int, default=2, help="Downsampling scale")
-    args = parser.parse_args()
+    parser = argparse.ArgumentParser(description="Train a model with specific parameters.")
 
-    loss, preds, targets = test(args.model, PATH_TEST, args.downsampling)
-    save_results(args.model, loss, preds, targets)
+    parser.add_argument("--model", type=str, required=True, help="Type of model")
+    args = parser.parse_args()
+    model_type = args.model
+
+    scaler = MinMaxScaler()
+    dataset = make_test_dataset(PATH_TEST, scaler)
+
+    model = select_model(model_type)
+    model = model.load_from_checkpoint(f"{PATH_MODELS}/{model_type}/model.ckpt")
+
+    test_module = OceanTestModule(model, model.loss_fn, scaler)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+
+    trainer = pl.Trainer(accelerator="gpu", devices=1, precision="16-mixed", logger=False)
+    trainer.predict(test_module, dataloader)
+
+    predictions = test_module.results["predictions"]
+    targets = test_module.results["targets"]
+    loss = test_module.results["losses"]
+
+    save_results(model_type, loss, predictions, targets)
 
 if __name__ == "__main__":
     main()

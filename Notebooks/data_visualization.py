@@ -6,23 +6,53 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
-def plot_currents(u, v, lat, lon, arrow_step=100, arrow_scale=0.1):
-    fig, ax = plt.subplots(figsize=(10, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-    lon, lat = np.meshgrid(lon, lat)
-    intensity = np.sqrt(u**2 + v**2)
-    im = ax.pcolormesh(lon, lat, intensity, cmap='Blues')
+def plot_currents(ds, sample_idx=0, time_idx=0, quiver_step=5, cmap='viridis'):
+    # Extract lat/lon grid
+    lat = ds.latitude.values
+    lon = ds.longitude.values
+    Lon, Lat = np.meshgrid(lon, lat)
 
-    u_scaled = u * arrow_scale
-    v_scaled = v * arrow_scale
+    # Extract u,v for predictions and targets
+    u_pred = ds.predictions[sample_idx, 0, time_idx].values
+    v_pred = ds.predictions[sample_idx, 1, time_idx].values
+    u_target = ds.targets[sample_idx, 0, time_idx].values
+    v_target = ds.targets[sample_idx, 1, time_idx].values
 
-    skip = (slice(None, None, arrow_step), slice(None, None, arrow_step))
+    # Compute magnitude
+    mag_pred = np.sqrt(u_pred**2 + v_pred**2)
+    mag_target = np.sqrt(u_target**2 + v_target**2)
 
-    ax.quiver(lon[skip], lat[skip], u_scaled[skip], v_scaled[skip], color='black', scale=2, width=0.003, headwidth=4)
-    ax.coastlines()
-    ax.add_feature(cfeature.BORDERS, linestyle=':')
-    ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.5, linestyle='dotted')
+    # Downsample for quiver
+    Lon_ds = Lon[::quiver_step, ::quiver_step]
+    Lat_ds = Lat[::quiver_step, ::quiver_step]
+    u_pred_ds = u_pred[::quiver_step, ::quiver_step]
+    v_pred_ds = v_pred[::quiver_step, ::quiver_step]
+    u_target_ds = u_target[::quiver_step, ::quiver_step]
+    v_target_ds = v_target[::quiver_step, ::quiver_step]
+    mag_pred_ds = mag_pred[::quiver_step, ::quiver_step]
+    mag_target_ds = mag_target[::quiver_step, ::quiver_step]
 
-    plt.title('Intensity and Direction of Currents')
+    # Create figure
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6),
+                             subplot_kw={'projection': ccrs.PlateCarree()})
+
+    for ax, U, V, M, title in zip(axes,
+                                  [u_pred_ds, u_target_ds],
+                                  [v_pred_ds, v_target_ds],
+                                  [mag_pred, mag_target],
+                                  ["Predicted Currents", "Target Currents"]):
+        # Plot magnitude as background
+        mag_plot = ax.pcolormesh(Lon, Lat, M, shading='auto', cmap=cmap)
+        fig.colorbar(mag_plot, ax=ax, orientation='vertical', label='Current speed')
+
+        # Plot arrows for direction (downsampled)
+        ax.quiver(Lon_ds, Lat_ds, U, V, color='black', width=0.002, scale=10)
+
+        ax.coastlines()
+        ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()])
+        ax.set_title(title)
+
+    plt.tight_layout()
     plt.show()
 
 def plot_height(zos, lat, lon):

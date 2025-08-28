@@ -7,8 +7,7 @@ from . import scaler
 class OceanDataset(Dataset):
     def __init__(self, path, scaler):
         raw_ds = xr.open_dataset(path)
-        scaler.fit(raw_ds)
-        self.ds = scaler.transform(raw_ds)
+        self.ds = scaler.fit_transform(raw_ds)
 
         input_vars = ['zos', 'u10', 'v10']
         target_vars = ['uo', 'vo', 'zos']

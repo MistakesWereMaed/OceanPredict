@@ -11,7 +11,8 @@ from data.data_loader import load_data, get_image_size
 
 PATH_TRAIN = "../Data/train.nc"
 PATH_VAL = "../Data/val.nc"
-PATH_PARAMS = "../Params"
+PATH_MODELS = "../Models"
+
 PATH_SECRETS = "data/secrets.json"
 PATH_LOGS = "../Logs"
 
@@ -48,7 +49,7 @@ def save_best_config(entity, sweep_id, model_type):
     best_run = min(runs, key=lambda run: run.summary.get("val_loss/dataloader_idx_0", float("inf")))
 
     best_config = dict(best_run.config)
-    output_file = f"{PATH_PARAMS}/{model_type}.json"
+    output_file = f"{PATH_MODELS}/{model_type}/params.json"
 
     with open(output_file, "w") as f:
         json.dump(best_config, f, indent=4)

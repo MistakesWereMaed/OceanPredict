@@ -1,11 +1,8 @@
-Data
-Checkpoints
 Logs
+*.nc
+*.ckpt
+secrets.json
 
 .DS_Store
 
 __pycache__
-
-Scripts/mistakesweremaed-utsa-the-university-of-texas-at-san-antonio
-
-secrets.json
