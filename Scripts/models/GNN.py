@@ -9,13 +9,13 @@ from torch_geometric.nn import GCNConv
 from torch_geometric.utils import grid
 from torch_geometric.data import Data, Batch
 
-PATH_PARAMS = "../Models/FNO/params.json"
+PATH_PARAMS = "../Models/GNN/params.json"
 
 class model(pl.LightningModule):
     def loss_fn(self, y_hat, y):
         return F.l1_loss(y_hat, y)
     
-    def __init__(self, image_size, learning_rate, loss_fn=F.l1_loss,**kwargs):
+    def __init__(self, image_size, learning_rate, **kwargs):
         super().__init__()
         self.save_hyperparameters()
 

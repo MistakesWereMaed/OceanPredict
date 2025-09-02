@@ -8,7 +8,7 @@ from models._selector import initialize_model
 from data.data_loader import load_data, get_image_size
 
 PATH_TRAIN = "../Data/train.nc"
-PATH_VAL = "../Data/val.nc"
+PATH_TEST = "../Data/test.nc"
 
 PROJECT = "OceanPredict"
 PATH_MODELS = "../Models"
@@ -28,7 +28,7 @@ def main():
     model, batch_size = initialize_model(model_type, size)
 
     logger = WandbLogger(name=f"{model_type}-Training", project=PROJECT, save_dir=PATH_LOGS)
-    checkpoint_cb = ModelCheckpoint(monitor="val_loss/dataloader_idx_0", save_top_k=1, mode="min", filename=model.name, dirpath=f"{PATH_MODELS}/{model.name}/model.ckpt")
+    checkpoint_cb = ModelCheckpoint(monitor="val_loss/dataloader_idx_0", save_top_k=1, mode="min", filename="model", dirpath=f"{PATH_MODELS}/{model.name}")
     early_stop_cb = EarlyStopping(monitor="val_loss/dataloader_idx_0", patience=3, mode="min")
 
     trainer = Trainer(
@@ -42,7 +42,7 @@ def main():
     )
 
     train_loader = load_data(PATH_TRAIN, batch_size=batch_size)
-    val_loader = load_data(PATH_VAL, batch_size=batch_size)
+    val_loader = load_data(PATH_TEST, batch_size=batch_size)
 
     trainer.fit(model, train_loader, val_loader)
 

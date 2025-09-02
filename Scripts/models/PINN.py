@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 
 from linformer import LinformerSelfAttention
 
-PATH_PARAMS = "../Models/FNO/params.json"
+PATH_PARAMS = "../Models/PINN/params.json"
 
 def calculate_seq_length(image_size, kernel_size, padding=0, stride=1):
     height_in, width_in = image_size
@@ -21,7 +21,7 @@ class model(pl.LightningModule):
     def loss_fn(self, y_hat, y):
         return F.l1_loss(y_hat, y)
     
-    def __init__(self, image_size, kernel_size, num_heads, embed_dim, linformer_k, mlp_hidden_dim, learning_rate, loss_fn=F.l1_loss, **kwargs):
+    def __init__(self, image_size, kernel_size, num_heads, embed_dim, linformer_k, mlp_hidden_dim, learning_rate, **kwargs):
         super().__init__()
         self.save_hyperparameters()
 
@@ -58,7 +58,7 @@ class model(pl.LightningModule):
         x = self.mlp(x)
         x = x.permute(0, 2, 1).view(batch_size, -1, height, width)
         x = self.transconv(x)
-        x = torch.clamp(x, min=1e-5, max=1e5)
+        x = torch.clamp(x, min=1e-4, max=1e4)
         # Extract u', v', SSH from Data-Driven output
         u_prime, v_prime, ssh = torch.chunk(x, chunks=3, dim=1)
         u_prime = u_prime.squeeze(1)
@@ -88,9 +88,9 @@ class model(pl.LightningModule):
                 "batch_size": {"values": [1, 4, 8]},
                 "kernel_size": {"values": [[3, 3], [5, 10], [7, 7]]},
                 "num_heads": {"values": [1, 2, 4]},
-                "embed_dim": {"values": [128, 256, 384, 512]},
-                "linformer_k": {"values": [32, 64, 96, 128]},
-                "mlp_hidden_dim": {"values": [32, 64, 96, 128]},
+                "embed_dim": {"values": [32, 128, 256, 384, 512]},
+                "linformer_k": {"values": [32, 128, 256, 384, 512]},
+                "mlp_hidden_dim": {"values": [32, 128, 256, 384, 512]},
                 "learning_rate": {
                     "distribution": "log_uniform_values",
                     "min": 1e-6,

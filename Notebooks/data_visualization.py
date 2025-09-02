@@ -6,48 +6,35 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
-def plot_currents(ds, sample_idx=0, time_idx=0, quiver_step=5, cmap='viridis'):
+def plot_currents(ds, time_idx=0, cmap='viridis'):
+    print(ds.loss[time_idx].values)
     # Extract lat/lon grid
     lat = ds.latitude.values
     lon = ds.longitude.values
     Lon, Lat = np.meshgrid(lon, lat)
 
-    # Extract u,v for predictions and targets
-    u_pred = ds.predictions[sample_idx, 0, time_idx].values
-    v_pred = ds.predictions[sample_idx, 1, time_idx].values
-    u_target = ds.targets[sample_idx, 0, time_idx].values
-    v_target = ds.targets[sample_idx, 1, time_idx].values
+    # Extract u,v for predictions and targets (no sample dimension)
+    u_pred = ds.predictions[0, time_idx].values
+    v_pred = ds.predictions[1, time_idx].values
+    u_target = ds.targets[0, time_idx].values
+    v_target = ds.targets[1, time_idx].values
 
     # Compute magnitude
     mag_pred = np.sqrt(u_pred**2 + v_pred**2)
     mag_target = np.sqrt(u_target**2 + v_target**2)
 
-    # Downsample for quiver
-    Lon_ds = Lon[::quiver_step, ::quiver_step]
-    Lat_ds = Lat[::quiver_step, ::quiver_step]
-    u_pred_ds = u_pred[::quiver_step, ::quiver_step]
-    v_pred_ds = v_pred[::quiver_step, ::quiver_step]
-    u_target_ds = u_target[::quiver_step, ::quiver_step]
-    v_target_ds = v_target[::quiver_step, ::quiver_step]
-    mag_pred_ds = mag_pred[::quiver_step, ::quiver_step]
-    mag_target_ds = mag_target[::quiver_step, ::quiver_step]
-
     # Create figure
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6),
-                             subplot_kw={'projection': ccrs.PlateCarree()})
+    fig, axes = plt.subplots(
+        1, 2, figsize=(16, 6), subplot_kw={'projection': ccrs.PlateCarree()}
+    )
 
-    for ax, U, V, M, title in zip(axes,
-                                  [u_pred_ds, u_target_ds],
-                                  [v_pred_ds, v_target_ds],
-                                  [mag_pred, mag_target],
-                                  ["Predicted Currents", "Target Currents"]):
-        # Plot magnitude as background
+    for ax, M, title in zip(
+        axes,
+        [mag_pred, mag_target],
+        ["Predicted Currents", "Target Currents"]
+    ):
         mag_plot = ax.pcolormesh(Lon, Lat, M, shading='auto', cmap=cmap)
         fig.colorbar(mag_plot, ax=ax, orientation='vertical', label='Current speed')
-
-        # Plot arrows for direction (downsampled)
-        ax.quiver(Lon_ds, Lat_ds, U, V, color='black', width=0.002, scale=10)
-
         ax.coastlines()
         ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()])
         ax.set_title(title)

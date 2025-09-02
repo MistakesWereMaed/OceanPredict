@@ -7,12 +7,12 @@ import copernicusmarine
 import cdsapi
 
 PATH_DATA = "../Data"
-PATH_SECRETS = "secrets.json"
+PATH_SECRETS = "data/secrets.json"
 
-LON_MIN = 10
-LON_MAX = 38
-LAT_MIN = -45
-LAT_MAX = -32
+LON_MIN = 120
+LON_MAX = 170
+LAT_MIN = 28
+LAT_MAX = 43
 
 def init():
     os.makedirs("./tmp", exist_ok=True)
@@ -120,14 +120,12 @@ def process_files():
 
     print(full)
 
-    train = full.sel(time=slice("2024-01-01", "2024-10-31"))
-    val = full.sel(time=slice("2024-11-01", "2024-11-30"))
+    train = full.sel(time=slice("2024-01-01", "2024-11-30"))
     test = full.sel(time=slice("2024-12-01", "2024-12-31"))
 
     os.makedirs(PATH_DATA, exist_ok=True)
 
     train.to_netcdf(f"{PATH_DATA}/train.nc")
-    val.to_netcdf(f"{PATH_DATA}/val.nc")
     test.to_netcdf(f"{PATH_DATA}/test.nc")
 
     shutil.rmtree("./tmp")

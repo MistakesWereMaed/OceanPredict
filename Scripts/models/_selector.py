@@ -22,7 +22,6 @@ def initialize_model(model_type, image_size, config=None):
         params = model_class.load_params()
 
     params["image_size"] = image_size
-
     model = model_class(**params)
     batch_size = params["batch_size"]
 

@@ -10,7 +10,7 @@ from models._selector import select_model, initialize_model
 from data.data_loader import load_data, get_image_size
 
 PATH_TRAIN = "../Data/train.nc"
-PATH_VAL = "../Data/val.nc"
+PATH_TEST = "../Data/test.nc"
 PATH_MODELS = "../Models"
 
 PATH_SECRETS = "data/secrets.json"
@@ -27,7 +27,7 @@ def train(model_type, config=None):
     model, batch_size = initialize_model(model_type, size, config)
 
     train_loader = load_data(PATH_TRAIN, batch_size=batch_size)
-    val_loader = load_data(PATH_VAL, batch_size=batch_size)
+    val_loader = load_data(PATH_TEST, batch_size=batch_size)
 
     trainer = Trainer(
         max_epochs=MAX_EPOCHS,
