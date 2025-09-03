@@ -10,7 +10,7 @@ class Scaler:
         self.min_val = ds.min(dim=("time", "latitude", "longitude"))
         self.max_val = ds.max(dim=("time", "latitude", "longitude"))
 
-        return (ds - self.min_val) / (self.max_val - self.min_val)
+        return 2 * (ds - self.min_val) / (self.max_val - self.min_val) - 1
 
     def inverse_transform(self, arr: torch.Tensor, var_names: list[str]):
         unscaled = []
@@ -22,7 +22,7 @@ class Scaler:
             print(f"  Stored min: {vmin.item():.4f}, max: {vmax.item():.4f}")
             print(f"  Input scaled range: min={arr[:, i].min().item():.4f}, max={arr[:, i].max().item():.4f}")
 
-            unscaled_var = arr[:, i] * (vmax - vmin) + vmin   # [B, T, H, W]
+            unscaled_var = (arr[:, i] + 1) / 2 * (vmax - vmin) + vmin   # [B, T, H, W]
 
             print(f"  Output unscaled range: min={unscaled_var.min().item():.4f}, max={unscaled_var.max().item():.4f}")
 

@@ -6,7 +6,7 @@ def rescale(x, dim=(0, 2, 3, 4)):
     x_min = x.amin(dim=dim, keepdim=True)
     x_max = x.amax(dim=dim, keepdim=True)
     
-    return (x - x_min) / (x_max - x_min + 1e-8)
+    return 2 * (x - x_min) / (x_max - x_min + 1e-8) - 1
 
 class OceanTestModule(pl.LightningModule):
     def __init__(self, model, loss_fn, scaler, target_days, target_vars):

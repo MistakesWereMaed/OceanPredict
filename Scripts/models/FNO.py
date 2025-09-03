@@ -43,8 +43,18 @@ class SpectralConv2d(nn.Module):
         return x
 
 class model(pl.LightningModule):
-    def loss_fn(self, y_hat, y):
-        return F.l1_loss(y_hat, y)
+    def loss_fn(self, y_pred, y_true):
+        # Absolute error
+        error = torch.abs(y_pred - y_true)  # [B, C, T, H, W]
+
+        # Weight stronger for higher-magnitude targets
+        weight = torch.sqrt(torch.sum(y_true**2, dim=1, keepdim=True) + 1e-6)
+
+        # Normalize weights per batch to avoid exploding gradients
+        weight = weight / (weight.mean() + 1e-6)
+
+        weighted_error = weight * error
+        return weighted_error.mean()
     
     def __init__(self, image_size, learning_rate, **kwargs):
         super().__init__()

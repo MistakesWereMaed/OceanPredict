@@ -7,7 +7,8 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
 def plot_currents(ds, time_idx=0, cmap='viridis'):
-    print(ds.loss[time_idx].values)
+    print("Loss at time index", time_idx, ds.loss[time_idx].values)
+
     # Extract lat/lon grid
     lat = ds.latitude.values
     lon = ds.longitude.values
@@ -23,21 +24,41 @@ def plot_currents(ds, time_idx=0, cmap='viridis'):
     mag_pred = np.sqrt(u_pred**2 + v_pred**2)
     mag_target = np.sqrt(u_target**2 + v_target**2)
 
-    # Create figure
+    # Create figure with 3 rows and 2 columns
     fig, axes = plt.subplots(
-        1, 2, figsize=(16, 6), subplot_kw={'projection': ccrs.PlateCarree()}
+        3, 2, figsize=(16, 14), subplot_kw={'projection': ccrs.PlateCarree()}
     )
+    titles = ["Predicted", "Target"]
 
-    for ax, M, title in zip(
-        axes,
+    for col, (mag, u, v, title) in enumerate(zip(
         [mag_pred, mag_target],
-        ["Predicted Currents", "Target Currents"]
-    ):
-        mag_plot = ax.pcolormesh(Lon, Lat, M, shading='auto', cmap=cmap)
-        fig.colorbar(mag_plot, ax=ax, orientation='vertical', label='Current speed')
-        ax.coastlines()
-        ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()])
-        ax.set_title(title)
+        [u_pred, u_target],
+        [v_pred, v_target],
+        titles
+    )):
+        # Row 0: magnitude
+        ax_mag = axes[0, col]
+        mag_plot = ax_mag.pcolormesh(Lon, Lat, mag, shading='auto', cmap=cmap)
+        fig.colorbar(mag_plot, ax=ax_mag, orientation='vertical', label='Speed')
+        ax_mag.coastlines()
+        ax_mag.set_extent([lon.min(), lon.max(), lat.min(), lat.max()])
+        ax_mag.set_title(f"{title} Magnitude")
+
+        # Row 1: u-component
+        ax_u = axes[1, col]
+        u_plot = ax_u.pcolormesh(Lon, Lat, u, shading='auto', cmap='coolwarm')
+        fig.colorbar(u_plot, ax=ax_u, orientation='vertical', label='U velocity')
+        ax_u.coastlines()
+        ax_u.set_extent([lon.min(), lon.max(), lat.min(), lat.max()])
+        ax_u.set_title(f"{title} U-component")
+
+        # Row 2: v-component
+        ax_v = axes[2, col]
+        v_plot = ax_v.pcolormesh(Lon, Lat, v, shading='auto', cmap='coolwarm')
+        fig.colorbar(v_plot, ax=ax_v, orientation='vertical', label='V velocity')
+        ax_v.coastlines()
+        ax_v.set_extent([lon.min(), lon.max(), lat.min(), lat.max()])
+        ax_v.set_title(f"{title} V-component")
 
     plt.tight_layout()
     plt.show()
